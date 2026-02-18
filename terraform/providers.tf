@@ -13,5 +13,5 @@ provider "sdwan" {
   url      = var.sdwan_url              # URL vManage depuis YAML
   username = var.sdwan_username         # User API
   password = var.sdwan_password         # Pass (sensitive=true)
-  insecure = var.sdwan_insecure         # Ignore SSL (lab only)
-}
+  insecure = var.sdwan_insecure         # Ignore SSL (lab only) 
+} 

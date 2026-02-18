@@ -4,3 +4,4 @@ variable "gitlab_token" {
   sensitive = true
   nullable  = false
   description = "GitLab CI token for auth"
+}
