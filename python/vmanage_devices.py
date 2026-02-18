@@ -4,8 +4,8 @@ CLIENT API VMANAGE 20.18 - SD-WAN as Code
 Charge Ansible Vault → Auth → Devices → Compliance checks
 
 Usage:
-  python vmanage_devices.py --vault-pass monpass123
-  python vmanage_devices.py --config config/vmanage.yaml  # Ancien mode plain
+  python vmanage_devices.py --vault                        # Ansible Vault (password prompted)
+  python vmanage_devices.py --config config/vmanage.yaml  # Plain YAML mode (lab)
 
 Fonctionnalités:
 - 🔐 Ansible Vault (prod) ou YAML plain (lab)
@@ -19,12 +19,14 @@ import json
 import sys
 import yaml
 import csv
+import getpass
 from pathlib import Path
 from typing import Dict, List, Any
 from ansible_vault import Vault
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import urllib3
 
 VAULT_FILE = Path(__file__).parent.parent / "ansible" / "group_vars" / "all" / "vault.yml"
 PLAIN_CONFIG = Path(__file__).parent.parent / "config" / "vmanage.yaml"
@@ -46,6 +48,9 @@ class VManageClient:
         session.mount("https://", adapter)
         
         session.verify = self.cfg.get("verify_ssl", False)
+        # Disable InsecureRequestWarning when user explicitly disables SSL verification
+        if not session.verify:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         login_url = f'{self.base_url}/j_security_check'
         payload = {
@@ -71,9 +76,34 @@ class VManageClient:
 
         # Endpoint status complet (reachability, version...)
         url = f'{self.base_url}/dataservice/device/action/status'
-        resp = self.session.get(url, timeout=30)
-        resp.raise_for_status()
-        
+        # Some vManage versions expect a POST to this action endpoint.
+        # Try POST first; fall back to GET if server returns 405.
+        try:
+            resp = self.session.post(url, json={"action": "status"}, timeout=30)
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Request failed: {e}")
+
+        # If not allowed, try GET. If forbidden, try alternative endpoint.
+        if resp.status_code == 405:
+            resp = self.session.get(url, timeout=30)
+
+        if resp.status_code == 403:
+            # Try alternative endpoint that returns device list
+            alt_url = f'{self.base_url}/dataservice/device'
+            alt_resp = self.session.get(alt_url, timeout=30)
+            if alt_resp.ok:
+                # vManage returns devices under 'data' for this endpoint too
+                return alt_resp.json().get("data", [])
+            else:
+                # Provide more diagnostic information
+                raise RuntimeError(f"Access forbidden (403) for {url}. Alt endpoint returned {alt_resp.status_code}: {alt_resp.text[:200]}")
+
+        # For other errors, raise with server message to help debugging
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise RuntimeError(f"HTTP error {resp.status_code} on {url}: {resp.text[:300]}")
+
         data = resp.json()
         return data.get("data", [])
 
@@ -110,8 +140,8 @@ def load_vault_config(vault_pass: str) -> Dict[str, Any]:
     
     vault = Vault(vault_pass)
     try:
-        decrypted = vault.decrypt(vault_content)
-        config = yaml.safe_load(decrypted)["vmanage_secrets"]
+        decrypted = vault.load(vault_content)
+        config = decrypted["vmanage_secrets"]
         print("🔐 Vault decrypted")
         return config
     except Exception as e:
@@ -143,7 +173,7 @@ def export_csv(devices: List[Dict], filename: str):
 
 def main():
     parser = argparse.ArgumentParser(description="vManage API Client")
-    parser.add_argument("--vault-pass", help="Ansible Vault password (prod)")
+    parser.add_argument("--vault", action="store_true", help="Use Ansible Vault (prod) - password will be prompted")
     parser.add_argument("--config", help="Plain YAML config (lab)")
     parser.add_argument("--export-json", help="Export JSON filename")
     parser.add_argument("--export-csv", action="store_true", help="Export CSV")
@@ -153,12 +183,13 @@ def main():
     args = parser.parse_args()
 
     # Load config
-    if args.vault_pass:
-        cfg = load_vault_config(args.vault_pass)
+    if args.vault:
+        vault_pass = getpass.getpass("🔐 Enter Ansible Vault password: ")
+        cfg = load_vault_config(vault_pass)
     elif args.config:
         cfg = load_plain_config()
     else:
-        print("❌ Specify --vault-pass or --config")
+        print("❌ Specify --vault or --config")
         sys.exit(1)
 
     # Client + auth

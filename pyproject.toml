@@ -1,0 +1,31 @@
+[project]
+name = "cisco-sdwan-as-code"
+version = "1.3.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ansible-vault>=4.1.0",
+    "duckdb>=1.4.4",
+    "pandas>=3.0.1",
+    "pyyaml>=6.0",
+    "requests>=2.32.5",
+]
+
+[project.scripts]
+cisco-sdwan-as-code = "cisco_sdwan_as_code:main"
+
+[tool.uv.workspace]
+members = []
+exclude = ["python"]
+
+[build-system]
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "ruff>=0.15.1",
+]
