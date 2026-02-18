@@ -1,0 +1,21 @@
+sdwan-as-code/
+|── .gitlab-ci.yml
+|── config/
+│   └── vmanage.yaml                 # Credentials centralisés. Rôle : Credentials unique réutilisé par tous les outils. Évite la duplication et facilite la rotation des creds.
+├── terraform/
+│   ├── providers.tf                 # Déclaration provider Cisco SD-WAN. Rôle: Initialise le provider Cisco SD-WAN qui traduit HCL → appels REST API vManage.
+│   ├── variables.tf                 # Variables d'entrée Terraform. Interface entre le YAML config/vmanage.yaml et le provider.
+│   ├── terraform.tfvars             # Valeurs concrètes (.gitignore en prod) Rôle: Valeurs concrètes. Copié/édité depuis config/vmanage.yaml. Ignoré par Git en prod (remplacé par Vault/Terraform Cloud).
+│   ├── main.tf                      # Module NAC-SDWAN + YAML templates. Rôle : Cœur de l'IaC. Le module lit les YAML, les convertit en objets vManage (feature/device templates) et les pousse via l'API.
+│   └── yaml/
+│       └── site1.yml                # Modèle déclaratif site branch (IaC pur). Rôle: Description pure IaC de ton infra SD-WAN. terraform apply = feature templates créés + device template assemblé + device branch1 attaché.
+├── ansible/
+│   ├── requirements.yml             # Collections Cisco SD-WAN
+│   ├── inventory.yml                # Inventaire (localhost pour API)
+│   ├── group_vars/
+│   │   └── all/
+│   │       └── vmanage.yml          # Rôle: Référence dynamique le YAML central. Ansible lit lui-même config/vmanage.yaml.
+│   └── sdwan_get_devices.yml        # Rôle: Premier playbook. Test connexion + inventaire devices pour futurs playbooks (upgrade, backup...).
+└── python/
+    └── vmanage_devices.py           # Rôle: Base pour générer inventaires, valider templates, checks post-terraform, etc.
+

@@ -1,0 +1,23 @@
+---
+- name: "Lister devices SD-WAN vManage"
+  hosts: localhost
+  gather_facts: false
+  vars_files:                            # Charge creds
+    - group_vars/all/vmanage.yml
+
+  tasks:
+    - name: "API call: devices list"
+      cisco.sdwan.devices_info:           # Module collection SD-WAN
+        host: "{{ vmanage_url }}"
+        username: "{{ vmanage_username }}"
+        password: "{{ vmanage_password }}"
+        validate_certs: "{{ vmanage_verify_ssl }}"
+      register: sdwan_devices             # Stocke résultat JSON
+
+    - name: "Affichage"
+      debug:
+        msg: |
+          Trouvé {{ sdwan_devices.devices | length }} devices:
+          {% for device in sdwan_devices.devices %}
+          - {{ device['host-name'] }} ({{ device['system-ip'] }})
+          {% endfor %}

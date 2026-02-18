@@ -1,0 +1,83 @@
+# .gitlab-ci.yml
+stages:
+  - validate
+  - plan
+  - apply
+  - verify
+
+variables:
+  TF_ROOT: terraform
+  ANSIBLE_VAULT_PASS: $ANSIBLE_VAULT_PASSWORD  # Variable GitLab CI/CD
+
+# Image Terraform + Ansible + Python
+image: 
+  name: cimg/python:3.11
+  entrypoint: [""] 
+
+before_script:
+  - apt-get update -qq && apt-get install -y ansible terraform
+  - cd $TF_ROOT && terraform init
+  - cd ../ansible && ansible-galaxy collection install -r requirements.yml
+
+# 1. Valider syntaxe + linter
+validate:
+  stage: validate
+  script:
+    - cd $TF_ROOT && terraform validate && terraform fmt -check
+    - cd ../ansible && ansible-lint *.yml
+    - yamllint ./**/*.yml
+  rules:
+    - changes:
+      - terraform/**/*
+      - ansible/**/*
+      - yaml/**/*
+
+# 2. Terraform Plan (preview)
+terraform-plan:
+  stage: plan
+  script:
+    - cd $TF_ROOT
+    - terraform plan -var="sdwan_url=$VMANAGE_URL" \
+                     -var="sdwan_username=$VMANAGE_USER" \
+                     -var="sdwan_password=$VMANAGE_PASS" \
+                     -var="sdwan_insecure=true" \
+                     -out=tfplan
+    - terraform show -json tfplan > plan.json
+  artifacts:
+    paths:
+      - $TF_ROOT/tfplan
+      - $TF_ROOT/plan.json
+  rules:
+    - if: $CI_MERGE_REQUEST_ID  # MR uniquement
+
+# 3. Auto-apply sur main (avec approval manuel)
+terraform-apply:
+  stage: apply
+  script:
+    - cd $TF_ROOT
+    - terraform apply -auto-approve tfplan
+  environment:
+    name: production
+    url: https://vmanage.corp.example.com
+  when: manual  # Approval requis
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# 4. Vérification post-deploy Ansible
+ansible-verify:
+  stage: verify
+  script:
+    - cd ansible
+    - ansible-playbook -i inventory.yml --ask-vault-pass sdwan_get_devices.yml
+    - ansible-playbook -i inventory.yml --ask-vault-pass sdwan_check_templates.yml
+  needs: [terraform-apply]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# 5. Python compliance check
+python-compliance:
+  stage: verify
+  script:
+    - cd python
+    - python vmanage_compliance.py
+  needs: [terraform-apply]

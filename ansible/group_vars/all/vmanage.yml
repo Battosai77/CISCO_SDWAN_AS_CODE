@@ -1,0 +1,6 @@
+# ansible/group_vars/all/vmanage.yml  (plain text)
+---
+vmanage_url: "{{ vault_vmanage_secrets.url }}"
+vmanage_username: "{{ vault_vmanage_secrets.username }}"
+vmanage_password: "{{ vault_vmanage_secrets.password }}"
+vmanage_verify_ssl: false

@@ -1,0 +1,23 @@
+# terraform/yaml/site1.yml
+model:
+  feature_templates:                      # Templates réutilisables (composants)
+    - name: "FT-VPN10-Branch"             # Nom unique vManage
+      type: "vpn"                         # Type feature template
+      description: "VPN 10 LAN branches"
+      config:
+        vpn: 10                           # VPN ID
+        ipv4:
+          - prefix: "192.168.10.0/24"     # Plage LAN site1
+
+  device_templates:                       # Template complet = assemblage features
+    - name: "DT-Branch-C8000V"            # Nom template vManage
+      description: "C8000V branch template"
+      device_type: "vedge-C8000V"         # Modèle chassis
+      feature_templates:                  # Liste des features attachées
+        - "FT-VPN10-Branch"
+
+  devices:                                # Instances concrètes
+    - hostname: "branch1-ce01"
+      system_ip: "10.255.1.1"             # IP système unique (identifiant)
+      site_id: 101                        # Site-ID OMP
+      template: "DT-Branch-C8000V"        # Template attaché

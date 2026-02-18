@@ -1,0 +1,32 @@
+sdwan-as-code/                          # Repo GitLab
+├── .gitlab-ci.yml                      # Pipeline CI/CD complet
+├── .gitignore                          # Sécurisé (vault, tfvars, etc.)
+├── README.md                           # Doc utilisateur
+│
+├── config/                             # Ancien (optionnel)
+│   └── vmanage.yaml                    # ⚠️ DEPRECATED → vault
+│
+├── ansible/
+│   ├── requirements.yml                # Collections Cisco
+│   ├── inventory.yml                   # localhost API
+│   ├── ansible.cfg                     # Vault auto-unlock
+│   └── group_vars/
+│       └── all/
+│           ├── vmanage.yml             # Réf. vault
+│           └── vault.yml               # 🔐 Credentials chiffrés
+│   └── playbooks/
+│       ├── sdwan_get_devices.yml       # Lister devices
+│       └── sdwan_check_templates.yml   # Vérif post-deploy
+│
+├── terraform/
+│   ├── providers.tf                    # Provider Cisco SD-WAN
+│   ├── variables.tf                    # Vars GitLab
+│   ├── main.tf                         # Module NAC-SDWAN
+│   └── yaml/
+│       ├── site1.yml                   # IaC site branch1
+│       └── site2.yml                   # + futurs sites
+│
+└── python/
+    ├── vmanage_devices.py              # Client API complet
+    ├── vmanage_compliance.py            # Checks avancés
+    └── requirements.txt                 # ansible-vault + requests

@@ -1,0 +1,4 @@
+all:
+  hosts:
+    localhost:                           # Pas de SSH, connexion API directe
+      ansible_connection: local

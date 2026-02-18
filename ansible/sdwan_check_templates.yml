@@ -1,0 +1,21 @@
+# ansible/sdwan_check_templates.yml
+---
+- name: "Vérifier conformité templates post-terraform"
+  hosts: localhost
+  vars_files:
+    - group_vars/all/vmanage.yml
+    - group_vars/all/vault.yml
+
+  tasks:
+    - name: "Récupérer templates"
+      cisco.sdwan.templates_info:
+        host: "{{ vmanage_url }}"
+        username: "{{ vmanage_username }}"
+        password: "{{ vmanage_password }}"
+      register: templates
+
+    - name: "Vérifier présence site1"
+      assert:
+        that:
+          - templates.templates | selectattr('name', 'equalto', 'DT-Branch-C8000V') | list | length == 1
+        fail_msg: "❌ Template DT-Branch-C8000V manquant!"

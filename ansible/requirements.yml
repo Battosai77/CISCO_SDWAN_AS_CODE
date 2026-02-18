@@ -1,0 +1,4 @@
+---
+collections:
+  - name: cisco.sdwan                    # Workflows SD-WAN (onboarding, backup...)
+  - name: cisco.catalystwan              # SDK bas niveau (template mgmt)

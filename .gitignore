@@ -1,0 +1,10 @@
+# Credentials
+config/vmanage.yaml
+ansible/group_vars/all/vault.yml
+terraform/terraform.tfvars
+terraform/.terraform/
+terraform/*.tfplan
+
+# Logs
+*.log
+.pytest_cache/
