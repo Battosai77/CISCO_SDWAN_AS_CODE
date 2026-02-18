@@ -1,4 +1,4 @@
-# .gitlab-ci.yml
+# .gitlab-ci.yml  → VERSION FIXÉE
 stages:
   - validate
   - plan
@@ -7,19 +7,30 @@ stages:
 
 variables:
   TF_ROOT: terraform
-  ANSIBLE_VAULT_PASS: $ANSIBLE_VAULT_PASSWORD  # Variable GitLab CI/CD
+  ANSIBLE_VAULT_PASS: $ANSIBLE_VAULT_PASSWORD
 
-# Image Terraform + Ansible + Python
 image: 
   name: cimg/python:3.11
-  entrypoint: [""] 
+  entrypoint: [""]
 
+# ✅ FIXED before_script
 before_script:
-  - apt-get update -qq && apt-get install -y ansible terraform
+  # 1. Installer Terraform via Hashicorp (pas apt, permissions)
+  - |
+    curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
+    apt-get update && apt-get install -y terraform=1.9.*
+  # 2. Ansible via pip (plus fiable)
+  - pip install ansible ansible-lint yamllint ansible-vault
+  # 3. Terraform init
   - cd $TF_ROOT && terraform init
+  # 4. Ansible Galaxy
   - cd ../ansible && ansible-galaxy collection install -r requirements.yml
+  # 5. Vérif versions
+  - terraform --version
+  - ansible --version
 
-# 1. Valider syntaxe + linter
+# 1. Valider syntaxe + linter (inchangé)
 validate:
   stage: validate
   script:
@@ -28,11 +39,11 @@ validate:
     - yamllint ./**/*.yml
   rules:
     - changes:
-      - terraform/**/*
-      - ansible/**/*
-      - yaml/**/*
+        - terraform/**/*
+        - ansible/**/*
+        - yaml/**/*
 
-# 2. Terraform Plan (preview)
+# 2. Terraform Plan (CORRIGÉ ansible-playbook vault)
 terraform-plan:
   stage: plan
   script:
@@ -47,10 +58,11 @@ terraform-plan:
     paths:
       - $TF_ROOT/tfplan
       - $TF_ROOT/plan.json
+    expire_in: 1 week
   rules:
-    - if: $CI_MERGE_REQUEST_ID  # MR uniquement
+    - if: $CI_MERGE_REQUEST_ID
 
-# 3. Auto-apply sur main (avec approval manuel)
+# 3. Terraform Apply (inchangé)
 terraform-apply:
   stage: apply
   script:
@@ -59,25 +71,28 @@ terraform-apply:
   environment:
     name: production
     url: https://vmanage.corp.example.com
-  when: manual  # Approval requis
+  when: manual
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
-# 4. Vérification post-deploy Ansible
+# 4. Ansible Verify (FIX vault pass)
 ansible-verify:
   stage: verify
   script:
     - cd ansible
-    - ansible-playbook -i inventory.yml --ask-vault-pass sdwan_get_devices.yml
-    - ansible-playbook -i inventory.yml --ask-vault-pass sdwan_check_templates.yml
+    - echo "$ANSIBLE_VAULT_PASS" | ansible-playbook -i inventory.yml --vault-id @prompt sdwan_get_devices.yml
+    - echo "$ANSIBLE_VAULT_PASS" | ansible-playbook -i inventory.yml --vault-id @prompt sdwan_check_templates.yml
   needs: [terraform-apply]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
-# 5. Python compliance check
+# 5. Python compliance (FIX requirements)
 python-compliance:
   stage: verify
   script:
     - cd python
-    - python vmanage_compliance.py
+    - pip install -r requirements.txt || pip install pyyaml requests ansible-vault
+    - echo "$ANSIBLE_VAULT_PASS" | python vmanage_devices.py --vault-pass "$ANSIBLE_VAULT_PASS"
   needs: [terraform-apply]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
